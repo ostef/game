@@ -1,0 +1,91 @@
+In text formats, comments start with a #
+
+metadata:
+"major.minor.micro\n"	# format version
+"yyyy:mm:dd.hh:mm:ss\n"	# asset version (file creation time)
+
+MeshBin\n
+[metadata]
+# Version 1.0.0
+[u32]	# vertex_count
+# for 0..vertex_count - 1
+[f32] [f32] [f32]		# position
+[f32] [f32]				# tex coords
+[f32] [f32] [f32]		# normal
+[s16] [s16] [s16] [s16]	# joint ids
+[f32] [f32] [f32]		# weights
+[u32]	# triangle_count
+# for 0..triangle_count - 1
+[u32] [u32] [u32]	# indices
+
+MeshTxt\n
+[metadata]
+# Version 1.0.0
+vertex_count 'u32'
+triangle_count 'u32'
+# for 0..vertex_count - 1
+v
+'f32' 'f32' 'f32'		# position
+'f32' 'f32'				# tex coords
+'f32' 'f32' 'f32'		# normal
+'s16' 's16' 's16' 's16'	# joint ids
+'f32' 'f32' 'f32'		# weights
+# for 0..triangle_count - 1
+t 'u32' 'u32' 'u32'	# indices
+
+AnimBin\n
+[metadata]
+# Version 1.0.0
+[string]	# skeleton
+[f32]		# duration
+[u16]		# number of joints
+# for 0..joint_count - 1
+[u64]		# keyframe count
+# for 0..keyframe_count - 1
+[f32]					# time
+[f32] [f32] [f32]		# position
+[f32] [f32] [f32] [f32]	# orientation
+[f32] [f32] [f32]		# scale
+
+AnimTxt\n
+[metadata]
+# Version 1.0.0
+use_skeleton 'string'
+duration 'f32'
+joint_count 'u16'
+# for 0..joint_count - 1
+joint 'u16'
+keyframe_count 'u64'
+# for 0..keyframe_count - 1
+key
+t 'f32'						# time
+# The following values can be < to indicate that the value hasn't changed since last frame
+p 'f32' 'f32' 'f32' 		# position
+o 'f32' 'f32' 'f32' 'f32'	# orientation
+s 'f32' 'f32' 'f32'			# scale
+
+SkelBin\n
+[metadata]
+# Version 1.0.0
+[u16]	# joint count
+# for 0..joint_count - 1
+[string]	# joint name
+[mat4f, row major]	# local bind transform
+[u16]	# child count
+[..u16]	# child ids
+
+SkelTxt\n
+[metadata]
+# Version 1.0.0
+joint_count 'u16'
+# Commented visual version of the joint hierarchy
+# for 0..joint_count - 1
+joint 'string'	# joint name followed by commented joint id
+local_bind_transform
+'f32' 'f32' 'f32' 'f32'	# row 0
+'f32' 'f32' 'f32' 'f32'	# row 1
+'f32' 'f32' 'f32' 'f32'	# row 2
+'f32' 'f32' 'f32' 'f32'	# row 3
+child_count 'u16'
+# for 0..child_count - 1
+'u16'	# child joint id

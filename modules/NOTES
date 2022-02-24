@@ -1,0 +1,5 @@
+The idea behind writing modules instead of #loading the source files in the project is not necessarily to make small decoupled piece of source code as much as it is about making units that can be thought of by themselves, though we have modules like Fmt and Ryu for example, that try to stay as much independent from other modules, even if this means duplicating code, but this is so they can be distributed with as little dependency as possible.
+
+As a side note, the Ryu module is quite different in nature to the Core module (I use Core as an example because the Fmt module duplicates code from Core, so it's not dependent on it), because it implements an algorithm that is quite complicated, and one wouldn't get any real benefit in rewriting it, unless you change the algorithm substantially, or for the sake of learning the algorithm, which is why it's OK for Fmt to import it, and incur a dependency on it.
+
+The Core module however, is a collection of useful functions, that are quite trivial to implement, and one might not like the way they're written, or the way they're used, or even their name, so there is a real benefit in rewriting these.
