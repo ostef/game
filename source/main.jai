@@ -328,7 +328,7 @@ main :: ()
 		log_error ("Could not load 'uv_grid.png'.");
 	defer destroy_texture (*texture);
 	mannequin_mesh : Static_Mesh;
-	if !load_mesh (*mannequin_mesh, "data/blender/mannequin_text.mesh")
+	if !load_mesh (*mannequin_mesh, "data/blender/mannequin.mesh")
 	{
 		show_error_box (window, "Could not load mesh.");
 		return;

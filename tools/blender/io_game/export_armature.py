@@ -14,16 +14,44 @@ from bpy_extras.io_utils import (
 from . import common
 
 def write_armature_binary (armature, filename, version = (1, 0, 0)):
-	pass
+	from struct import pack
+
+	bones_dict, bones = common.decompose_armature_data (armature)
+	with open (filename, "wb") as file:
+		fw = file.write
+		common.write_asset_header (file, version, "SkelBin\n")
+		fw (pack ("<h", len (bones)))	# Joint count, maximum is s16 max
+		for b in bones:
+			if b.parent is not None:
+				local_transform = b.parent.matrix_local.inverted () @ b.matrix_local
+			else:
+				local_transform = b.matrix_local
+			bone_name = b.name
+			if len (bone_name) > 255:
+				print (f"Bone {bone_name} has a name that exceeds 255 characters, truncating...\n")
+				bone_name = b.name[0:255]
+			fw (pack ("<B", len (bone_name)))	# Joint name length, maximum 255 bytes
+			fw (b"%s" % bytes (bone_name, 'UTF-8'))
+			fw (pack ("<4f", *local_transform[0]))
+			fw (pack ("<4f", *local_transform[1]))
+			fw (pack ("<4f", *local_transform[2]))
+			fw (pack ("<4f", *local_transform[3]))
+			deform_child_count = 0
+			for child in b.children:
+				if child.use_deform:
+					deform_child_count += 1
+			fw (pack ("<h", deform_child_count))	# Child count, maximum is s16 max
+			for child in b.children:
+				if child.use_deform:
+					fw (pack ("<h", bones_dict[child.name]))
 
 def write_armature_text (armature, filename, version = (1, 0, 0)):
-	bones = common.decompose_armature_data (armature)
+	bones_dict, bones = common.decompose_armature_data (armature)
 	with open (filename, "wb") as file:
 		fw = file.write
 		common.write_asset_header (file, version, "SkelTxt\n")
 		fw (b"joint_count %u\n" % len (bones))
-		for name, val in bones.items ():
-			b = val[0]
+		for b in bones:
 			fw (b"joint %s\n" % bytes (b.name, 'UTF-8'))
 			fw (b"local_bind_transform\n")
 			if b.parent is not None:
@@ -41,7 +69,7 @@ def write_armature_text (armature, filename, version = (1, 0, 0)):
 			fw (b"child_count %u\n" % deform_child_count)
 			for child in b.children:
 				if child.use_deform:
-					fw (b"%u " % bones[child.name][1])
+					fw (b"%u " % bones_dict[child.name])
 			fw (b"\n")
 
 def save_armature (
@@ -98,7 +126,7 @@ class Export_Armature (bpy.types.Operator, ExportHelper):
 	use_selection : BoolProperty (
 		name = "Only selected",
 		description = "Export only the selected armatures.",
-		default = False
+		default = True
 	)
 	apply_transform : BoolProperty (
 		name = "Apply object transform",
@@ -119,3 +147,6 @@ class Export_Armature (bpy.types.Operator, ExportHelper):
 		context.window.cursor_set ('DEFAULT')
 		
 		return { 'FINISHED' }
+
+def export_menu_func (self, context):
+	self.layout.operator (Export_Armature.bl_idname)

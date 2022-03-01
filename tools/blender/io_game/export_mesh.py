@@ -40,11 +40,11 @@ def weights_to_tuple3 (a):
 	return round (a[0], 6), round (a[1], 6), round (a[2], 6)
 
 def decompose_mesh_data (obj, mesh):
-	bone_dict = {}
+	bones_dict = {}	# bone_name : bone_id
 	armature_obj = obj.find_armature ()
 	has_armature = armature_obj is not None
 	if has_armature:
-		bone_dict = common.decompose_armature_data (armature_obj.data)
+		bones_dict = common.decompose_armature_data (armature_obj.data)
 	vert_group_names = { g.index : g.name for g in obj.vertex_groups }
 	has_uvs = True
 	if mesh.uv_layers:
@@ -88,8 +88,8 @@ def decompose_mesh_data (obj, mesh):
 			if out_vert_index is None:
 				bone_ids = [-1 for i in range (len (groups))]
 				for i in range (len (groups)):
-					if groups[i] != -1 and vert_group_names[groups[i]] in bone_dict:
-						bone_ids[i] = bone_dict[vert_group_names[groups[i]]][1]
+					if groups[i] != -1 and vert_group_names[groups[i]] in bones_dict:
+						bone_ids[i] = bones_dict[vert_group_names[groups[i]]]
 				out_vert_index = out_vert_count
 				dict_local[key] = out_vert_count
 				out_verts.append ((vert_index, uvs, normal, tuple (bone_ids), weights))
@@ -191,7 +191,7 @@ class Export_Mesh (bpy.types.Operator, ExportHelper):
 	use_selection : BoolProperty (
 		name = "Only selected",
 		description = "Export only the selected meshes.",
-		default = False
+		default = True
 	)
 	apply_transform : BoolProperty (
 		name = "Apply object transform",
