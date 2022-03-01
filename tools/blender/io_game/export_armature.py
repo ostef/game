@@ -95,15 +95,26 @@ class Export_Armature (bpy.types.Operator, ExportHelper):
 		description = "Export the armature as binary data.",
 		default = True
 	)
+	use_selection : BoolProperty (
+		name = "Only selected",
+		description = "Export only the selected armatures.",
+		default = False
+	)
+	apply_transform : BoolProperty (
+		name = "Apply object transform",
+		description = "Apply the object transform matrix when exporting armatures.",
+		default = True
+	)
 
 	def execute (self, context):
 		context.window.cursor_set ('WAIT')
-		axis_conversion_matrix = axis_conversion (to_forward = self.axis_forward, to_up = self.axis_up)
 		save_armature (
 			context,
 			self.filepath,
 			self.use_binary_format,
-			axis_conversion_matrix
+			self.use_selection,
+			self.apply_transform,
+			axis_conversion (to_forward = self.axis_forward, to_up = self.axis_up)
 		)
 		context.window.cursor_set ('DEFAULT')
 		
