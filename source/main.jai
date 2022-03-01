@@ -77,15 +77,38 @@ load_mesh :: (using mesh : *Static_Mesh, filename : string) -> bool
 	file_data := file_contents.data;
 	defer free (file_data, HEAP_ALLOC);
 
-	if !starts_with (file_contents, "MeshBin\n")
-		return log_error ("Expected MeshBin.");
-	file_contents = advance (file_contents, "MeshBin\n".count);
+	if !starts_with (file_contents, "MeshTxt\n")
+		return log_error ("Expected MeshTxt.");
+	file_contents = advance (file_contents, "MeshTxt\n".count);
 	if !starts_with (file_contents, "1.0.0\n")
 		return log_error ("Expected file format version.");
 	file_contents = advance (file_contents, "1.0.0\n".count);
-	if !starts_with (file_contents, "yyyy:mm:dd.hh:mm:ss\n")
-		return log_error ("Expected asset version.");
-	file_contents = advance (file_contents, "yyyy:mm:dd.hh:mm:ss\n".count);
+	{
+		val, read := string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [yyyy].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [mm].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [dd].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [HH].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [MM].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [SS].");
+		file_contents = advance (file_contents, read + 1);
+	}
 	if !starts_with (file_contents, "vertex_count ")
 		return log_error ("Expected vertex_count.");
 	file_contents = advance (file_contents, "vertex_count ".count);
@@ -136,6 +159,37 @@ load_mesh :: (using mesh : *Static_Mesh, filename : string) -> bool
 			return log_error ("Expected a f32.");
 		file_contents = advance (file_contents, read + 1);
 		vert.normal.z, read = string_to_f32 (file_contents);
+		if !read
+			return log_error ("Expected a f32.");
+		file_contents = advance (file_contents, read + 1);
+		joint : s16;
+		joint, read = string_to_s16 (file_contents);
+		if !read
+			return log_error ("Expected a s16.");
+		file_contents = advance (file_contents, read + 1);
+		joint, read = string_to_s16 (file_contents);
+		if !read
+			return log_error ("Expected a s16.");
+		file_contents = advance (file_contents, read + 1);
+		joint, read = string_to_s16 (file_contents);
+		if !read
+			return log_error ("Expected a s16.");
+		file_contents = advance (file_contents, read + 1);
+		joint, read = string_to_s16 (file_contents);
+		if !read
+			return log_error ("Expected a s16.");
+		file_contents = advance (file_contents, read + 1);
+
+		weight : f32;
+		weight, read = string_to_f32 (file_contents);
+		if !read
+			return log_error ("Expected a f32.");
+		file_contents = advance (file_contents, read + 1);
+		weight, read = string_to_f32 (file_contents);
+		if !read
+			return log_error ("Expected a f32.");
+		file_contents = advance (file_contents, read + 1);
+		weight, read = string_to_f32 (file_contents);
 		if !read
 			return log_error ("Expected a f32.");
 		file_contents = advance (file_contents, read + 1);
@@ -274,7 +328,7 @@ main :: ()
 		log_error ("Could not load 'uv_grid.png'.");
 	defer destroy_texture (*texture);
 	mannequin_mesh : Static_Mesh;
-	if !load_mesh (*mannequin_mesh, "data/blender/mannequin_script.mesh")
+	if !load_mesh (*mannequin_mesh, "data/blender/mannequin_text.mesh")
 	{
 		show_error_box (window, "Could not load mesh.");
 		return;
