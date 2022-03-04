@@ -11,9 +11,19 @@ from bpy_extras.io_utils import (
 	orientation_helper,
 	axis_conversion
 )
+from bpy.types import (
+	Context,
+	Armature
+)
+from typing import (
+	List,
+	Dict,
+	Tuple,
+	BinaryIO
+)
 from . import common
 
-def write_armature_binary (armature, filename, version = (1, 0, 0)):
+def write_armature_binary (armature : Armature, filename : str, version : Tuple[int, int, int] = (1, 0, 0)):
 	from struct import pack
 
 	bones_dict, bones = common.decompose_armature_data (armature)
@@ -45,7 +55,7 @@ def write_armature_binary (armature, filename, version = (1, 0, 0)):
 				if child.use_deform:
 					fw (pack ("<h", bones_dict[child.name]))
 
-def write_armature_text (armature, filename, version = (1, 0, 0)):
+def write_armature_text (armature : Armature, filename : str, version : Tuple[int, int, int] = (1, 0, 0)):
 	bones_dict, bones = common.decompose_armature_data (armature)
 	with open (filename, "wb") as file:
 		fw = file.write
@@ -73,13 +83,13 @@ def write_armature_text (armature, filename, version = (1, 0, 0)):
 			fw (b"\n")
 
 def save_armature (
-	context,
-	filename,
-	use_binary_format,
-	use_selection,
-	apply_transform,
-	axis_conversion_matrix,
-	version = (1, 0, 0)
+	context : Context,
+	filename : str,
+	use_binary_format : bool,
+	use_selection : bool,
+	apply_transform : bool,
+	axis_conversion_matrix : mathutils.Matrix,
+	version : Tuple[int, int, int] = (1, 0, 0)
 ):
 	if bpy.ops.object.mode_set.poll ():
 		bpy.ops.object.mode_set (mode = 'OBJECT')
@@ -134,7 +144,7 @@ class Export_Armature (bpy.types.Operator, ExportHelper):
 		default = True
 	)
 
-	def execute (self, context):
+	def execute (self, context : Context):
 		context.window.cursor_set ('WAIT')
 		save_armature (
 			context,
@@ -148,5 +158,5 @@ class Export_Armature (bpy.types.Operator, ExportHelper):
 		
 		return { 'FINISHED' }
 
-def export_menu_func (self, context):
+def export_menu_func (self, context : Context):
 	self.layout.operator (Export_Armature.bl_idname)

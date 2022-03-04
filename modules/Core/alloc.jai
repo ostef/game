@@ -37,13 +37,26 @@ new :: inline ($T : Type, allocator : Allocator) -> *T #must
 	return result;
 }
 
-alloc_array :: inline ($T : Type, count : s64, allocator : Allocator) -> []T #must
+alloc_array :: inline ($T : Type, count : s64, allocator : Allocator, $initialize := false) -> []T #must
 {
 	result : []T = ---;
 	result.data = cast (*T) alloc (size_of (T) * count, allocator);
 	if !result.data
 		return .[];
 	result.count = count;
+#if initialize
+{
+	initializer :: initializer_of (T);
+#if initializer
+{
+	for i : 0..count - 1 #no_abc
+	{
+		initializer (*result[i]);
+	}
+}
+else
+	memset (result.data, 0, size_of (T) * count);
+}
 
 	return result;
 }

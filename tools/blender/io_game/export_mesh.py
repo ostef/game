@@ -11,6 +11,17 @@ from bpy_extras.io_utils import (
 	orientation_helper,
 	axis_conversion
 )
+from bpy.types import (
+	Context,
+	Object,
+	Mesh
+)
+from typing import (
+	List,
+	Dict,
+	Tuple,
+	BinaryIO
+)
 from . import common
 
 def rvec3 (v):
@@ -39,7 +50,7 @@ def weights_to_tuple3 (a):
 		return round (a[0], 6), round (a[1], 6), 0
 	return round (a[0], 6), round (a[1], 6), round (a[2], 6)
 
-def decompose_mesh_data (obj, mesh):
+def decompose_mesh_data (obj : Object, mesh : Mesh):
 	bones_dict = {}	# bone_name : bone_id
 	armature_obj = obj.find_armature ()
 	has_armature = armature_obj is not None
@@ -98,7 +109,7 @@ def decompose_mesh_data (obj, mesh):
 	
 	return out_verts, out_tris
 
-def write_mesh_binary (obj, mesh, filename, version = (1, 0, 0)):
+def write_mesh_binary (obj : Object, mesh : Mesh, filename : str, version : Tuple[int, int, int] = (1, 0, 0)):
 	from struct import pack
 
 	verts, tris = decompose_mesh_data (obj, mesh)
@@ -116,7 +127,7 @@ def write_mesh_binary (obj, mesh, filename, version = (1, 0, 0)):
 		for tri in tris:
 			fw (pack ("<3I", *tri))
 
-def write_mesh_text (obj, mesh, filename, version = (1, 0, 0)):
+def write_mesh_text (obj : Object, mesh : Mesh, filename : str, version : Tuple[int, int, int] = (1, 0, 0)):
 	verts, tris = decompose_mesh_data (obj, mesh)
 	with open (filename, "wb") as file:
 		fw = file.write
@@ -134,13 +145,13 @@ def write_mesh_text (obj, mesh, filename, version = (1, 0, 0)):
 			fw (b"t %u %u %u\n" % tuple (tri))
 
 def save_mesh (
-	context,
-	filename,
-	use_binary_format,
-	use_selection,
-	apply_transform,
-	axis_conversion_matrix,
-	version = (1, 0, 0)
+	context : Context,
+	filename : str,
+	use_binary_format : bool,
+	use_selection : bool,
+	apply_transform : bool,
+	axis_conversion_matrix : mathutils.Matrix,
+	version : Tuple[int, int, int] = (1, 0, 0)
 ):
 	if bpy.ops.object.mode_set.poll ():
 		bpy.ops.object.mode_set (mode = 'OBJECT')
@@ -199,7 +210,7 @@ class Export_Mesh (bpy.types.Operator, ExportHelper):
 		default = True
 	)
 
-	def execute (self, context):
+	def execute (self, context : Context):
 		context.window.cursor_set ('WAIT')
 		save_mesh (
 			context,
@@ -213,5 +224,5 @@ class Export_Mesh (bpy.types.Operator, ExportHelper):
 
 		return { 'FINISHED' }
 
-def export_menu_func (self, context):
+def export_menu_func (self, context : Context):
 	self.layout.operator (Export_Mesh.bl_idname)

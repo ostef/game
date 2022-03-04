@@ -1,4 +1,15 @@
-def write_asset_header (file, version, format_identifier):
+from bpy.types import (
+	Armature,
+	Bone
+)
+from typing import (
+	List,
+	Dict,
+	Tuple,
+	BinaryIO
+)
+
+def write_asset_header (file : BinaryIO, version : Tuple[int, int, int], format_identifier : str):
 	import datetime
 
 	fw = file.write
@@ -14,14 +25,14 @@ how we did things before, it's just, Rigify has a very weird joint hierarchy, so
 ditch that rig or do something akin to Rigify To Unity, which I honestly don't want to bother
 doing considering we will probably use our own rigs in the future for serious projects.
 """
-def decompose_armature_data (armature):
-	def append_bone (bone, bones):
+def decompose_armature_data (armature : Armature):
+	def append_bone (bone : Bone, bones : List[Bone]):
 		bones.update ({ bone.name : (bone, len (bones)) })
 		for child in bone.children:
 			if child.use_deform:
 				append_bone (child, bones)
 
-	def has_deform_children (bone):
+	def has_deform_children (bone : Bone):
 		for child in bone.children:
 			if child.use_deform:
 				return True
@@ -38,8 +49,8 @@ def decompose_armature_data (armature):
 	if root is None:
 		raise Exception ("Could not find root bone.")
 	"""
-	bones_dict = {}
-	bones = []
+	bones_dict : Dict[str, int] = {}
+	bones : List[Bone] = []
 	#append_bone (root, bones)
 	for b in armature.bones:
 		if b.use_deform:

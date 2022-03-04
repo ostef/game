@@ -219,6 +219,120 @@ load_mesh :: (using mesh : *Static_Mesh, filename : string) -> bool
 	return true;
 }
 
+Skeleton :: struct
+{
+	Joint :: struct
+	{
+		name     : string;
+		id       : s16;
+		parent   : *~s16 Joint;
+		children : []*~s16 Joint;
+
+		local_bind_transform   : Mat4f;
+		inverse_bind_transform : Mat4f;
+	}
+
+	joints : []Joint;
+	root_joint : *Joint;
+}
+
+load_skeleton :: (using skeleton : *Skeleton, filename : string) -> bool
+{
+	file_contents, ok := read_entire_file (filename, HEAP_ALLOC);
+	if !ok
+		return log_error ("Could not read file '%'.", filename);
+	file_data := file_contents.data;
+	defer free (file_data, HEAP_ALLOC);
+
+	if !starts_with (file_contents, "SkelTxt\n")
+		return log_error ("Expected SkelTxt.");
+	file_contents = advance (file_contents, "SkelTxt\n".count);
+	if !starts_with (file_contents, "1.0.0\n")
+		return log_error ("Expected file format version.");
+	file_contents = advance (file_contents, "1.0.0\n".count);
+	{
+		val, read := string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [yyyy].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [mm].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [dd].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [HH].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [MM].");
+		file_contents = advance (file_contents, read + 1);
+		val, read = string_to_u32 (file_contents);
+		if !read
+			return log_error ("Expected [SS].");
+		file_contents = advance (file_contents, read + 1);
+	}
+	if !starts_with (file_contents, "joint_count ")
+		return log_error ("Expected joint_count.");
+	file_contents = advance (file_contents, "joint_count ".count);
+	val, read := string_to_u32 (file_contents);
+	if !read
+		return log_error ("Expected a u32.");
+	file_contents = advance (file_contents, read + 1);
+	joints = alloc_array (Joint, val, HEAP_ALLOC, initialize = true);
+	for * joint : joints
+	{
+		if !starts_with (file_contents, "joint ")
+			return log_error ("Expected joint .");
+		file_contents = advance (file_contents, "joint ".count);
+		joint.name.data = file_contents.data;
+		while file_contents.count > 0 && file_contents[0] != #char "\n"
+			file_contents = advance (file_contents);
+		joint.name.count = file_contents.data - joint.name.data;
+		joint.name = clone_string (joint.name, HEAP_ALLOC);
+		file_contents = advance (file_contents);
+		if !starts_with (file_contents, "local_bind_transform\n")
+			return log_error ("Expected local_bind_transform\\n.");
+		file_contents = advance (file_contents, "local_bind_transform\n".count);
+		for i : 0..3
+		{
+			for j : 0..3
+			{
+				val, read := string_to_f64 (file_contents);
+				if !read
+					return log_error ("Expected a f32.");
+				file_contents = advance (file_contents, read + 1);
+				joint.local_bind_transform.n[i][j] = xx val;
+			}
+		}
+		if !starts_with (file_contents, "child_count ")
+			return log_error ("Expected child_count .");
+		file_contents = advance (file_contents, "child_count ".count);
+		val : s16;
+		val, read = string_to_s16 (file_contents);
+		if !read
+			return log_error ("Expected a s16.");
+		file_contents = advance (file_contents, read + 1);
+		joint.children = alloc_array (*~s16 Joint, val, HEAP_ALLOC);
+		for * child : joint.children
+		{
+			id, read := string_to_s16 (file_contents);
+			if !read
+				return log_error ("Expected a s16.");
+			file_contents = advance (file_contents, read + 1);
+			<<child = xx id;
+			(<<child).parent = joint;
+		}
+		file_contents = advance (file_contents);
+	}
+
+	return true;
+}
+
 draw_mesh :: (using mesh : *Mesh)
 {
 	prev_vertex_buffer := use_vertex_buffer (*vertex_buffer);
@@ -227,41 +341,6 @@ draw_mesh :: (using mesh : *Mesh)
 	defer use_index_buffer (*prev_index_buffer);
 	glDrawElements (GL_TRIANGLES, cast (u32) indices.count, GL_UNSIGNED_INT, null);
 }
-
-VERTEX_SHADER :: #string GLSL
-#version 330 core
-
-layout (location = 0) in vec3 a_Position;
-layout (location = 1) in vec2 a_Tex_Coords;
-layout (location = 2) in vec3 a_Normal;
-
-uniform mat4 u_View_Projection_Matrix;
-uniform mat4 u_Model_Matrix;
-
-out vec2 Tex_Coords;
-out vec4 Color;
-
-void main ()
-{
-	gl_Position = u_View_Projection_Matrix * u_Model_Matrix * vec4 (a_Position, 1);
-	Tex_Coords = a_Tex_Coords;
-	Color = vec4 (a_Normal, 1);
-}
-GLSL
-
-FRAGMENT_SHADER :: #string GLSL
-#version 330 core
-
-in vec2 Tex_Coords;
-in vec4 Color;
-
-out vec4 Frag_Color;
-
-void main ()
-{
-	Frag_Color = Color;
-}
-GLSL
 
 main :: ()
 {
@@ -323,10 +402,6 @@ main :: ()
 		return;
 	}
 	defer debug_draw_destroy_context (debug_draw);
-	texture : Texture;
-	if !load_texture_from_file (*texture, "uv_grid.png")
-		log_error ("Could not load 'uv_grid.png'.");
-	defer destroy_texture (*texture);
 	mannequin_mesh : Static_Mesh;
 	if !load_mesh (*mannequin_mesh, "data/blender/mannequin.mesh")
 	{
@@ -335,6 +410,12 @@ main :: ()
 	}
 	init_mesh_buffers (*mannequin_mesh);
 	defer destroy_mesh_buffers (*mannequin_mesh);
+	mannequin_skeleton : Skeleton;
+	if !load_skeleton (*mannequin_skeleton, "data/blender/mannequin.skel")
+	{
+		show_error_box (window, "Could not load skeleton.");
+		return;
+	}
 	shader : Shader;
 	{
 		ok, log := init_shader (*shader, VERTEX_SHADER, FRAGMENT_SHADER);
@@ -344,23 +425,11 @@ main :: ()
 			show_error_box (window, "Could not load shader.");
 			return;
 		}
-	}
-
-	i := 1;
-	while i < 100
-	{
-		defer i += 2;
-		add_aabb_collider (vec3f (40.0, 150, 40.0 * i), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (40.0, 150, -40.0 * i), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (-40.0, 150, 40.0 * i), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (-40.0, 150, -40.0 * i), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (40.0 * i, 150, 40.0), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (40.0 * i, 150, -40.0), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (-40.0 * i, 150, 40.0), vec3f (20, 150, 20));
-		add_aabb_collider (vec3f (-40.0 * i, 150, -40.0), vec3f (20, 150, 20));
+		defer destroy_shader (*shader);
 	}
 
 	camera.position.z = -2;
+	camera.position.y = 1;
 	running = true;
 	delta_time := 0.16;
 	while running
@@ -380,9 +449,9 @@ main :: ()
 		}
 		update_input_state ();
 
-		update_player (*player, *camera, delta_time);
-		//update_flying_camera (*camera, delta_time);
-		update_game_camera (*camera, player.position, delta_time);
+		//update_player (*player, *camera, delta_time);
+		update_flying_camera (*camera, delta_time);
+		//update_game_camera (*camera, player.position, delta_time);
 		debug_draw.camera_transform = camera.transform;
 		debug_draw.view_projection_matrix = camera.view_projection_matrix;
 
@@ -392,8 +461,8 @@ main :: ()
 		glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		debug_draw_begin (debug_draw);
-			draw_aabb_colliders (RGBA_GREEN);
-			draw_player (*player);
+			//draw_aabb_colliders (RGBA_GREEN);
+			//draw_player (*player);
 			debug_draw_coordinates (MAT4F_IDENTITY);
 			debug_draw_grid (vec3f (0, 0, 0), vec2f (400, 400), 1, RIGHT_VECTOR, FORWARD_VECTOR, rgba (255, 255, 255, 100));
 		debug_draw_end ();
@@ -427,3 +496,38 @@ main :: ()
 		delta_time = cast (f32) (get_time () - frame_start);
 	}
 }
+
+VERTEX_SHADER :: #string GLSL
+#version 330 core
+
+layout (location = 0) in vec3 a_Position;
+layout (location = 1) in vec2 a_Tex_Coords;
+layout (location = 2) in vec3 a_Normal;
+
+uniform mat4 u_View_Projection_Matrix;
+uniform mat4 u_Model_Matrix;
+
+out vec2 Tex_Coords;
+out vec4 Color;
+
+void main ()
+{
+	gl_Position = u_View_Projection_Matrix * u_Model_Matrix * vec4 (a_Position, 1);
+	Tex_Coords = a_Tex_Coords;
+	Color = vec4 (a_Normal, 1);
+}
+GLSL
+
+FRAGMENT_SHADER :: #string GLSL
+#version 330 core
+
+in vec2 Tex_Coords;
+in vec4 Color;
+
+out vec4 Frag_Color;
+
+void main ()
+{
+	Frag_Color = Color;
+}
+GLSL

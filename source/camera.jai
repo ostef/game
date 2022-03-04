@@ -1,7 +1,7 @@
 Camera :: struct
 {
-	FLY_SPEED :: 6.0;
-	ROTATION_SPEED :: 0.5;
+	FLY_SPEED :: 1.0;
+	ROTATION_SPEED :: 0.3;
 	ROTATION_SMOOTHING :: 0.3;
 
 	position : Vec3f;
