@@ -14,7 +14,8 @@ log_message :: inline (
 {
 	temporary_block ();
 	//str := join (TEMP_ALLOC, "[", `MODULE_NAME, "] ", fmt (TEMP_ALLOC, fmt_str, ..args));
-	str := fmt (TEMP_ALLOC, fmt_str, ..args);
+	str := fmt (HEAP_ALLOC, fmt_str, ..args);
+	defer free (str, HEAP_ALLOC);
 	if str.count == 0
 		return;
 	info : Log_Info;

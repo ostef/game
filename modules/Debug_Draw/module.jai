@@ -38,6 +38,7 @@ Debug_Draw_Context :: struct
 	draw_triangles := false;
 	camera_transform : Mat4f;
 	view_projection_matrix : Mat4f;
+	use_depth_test := true;
 
 	vertex_buffer : Vertex_Buffer;
 	shader : Shader;
@@ -117,7 +118,10 @@ debug_draw_flush :: inline ()
 	set_shader_parameter (*debug_draw.shader, "u_Rendering_Text", debug_draw.texture != null);
 
 	glDisable (GL_SCISSOR_TEST);
-	glEnable (GL_DEPTH_TEST);
+	if debug_draw.use_depth_test
+		glEnable (GL_DEPTH_TEST);
+	else
+		glDisable (GL_DEPTH_TEST);
 	glEnable (GL_BLEND);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -155,6 +159,17 @@ debug_draw_set_mode :: inline (draw_triangles : bool) -> previous : bool
 		debug_draw_flush ();
 	previous := debug_draw.draw_triangles;
 	debug_draw.draw_triangles = draw_triangles;
+
+	return previous;
+}
+
+debug_draw_set_depth_test :: inline (use_depth_test : bool) -> previous : bool
+{
+	debug_draw_check ();
+	if use_depth_test != debug_draw.use_depth_test
+		debug_draw_flush ();
+	previous := debug_draw.use_depth_test;
+	debug_draw.use_depth_test = use_depth_test;
 
 	return previous;
 }

@@ -225,8 +225,8 @@ Skeleton :: struct
 	{
 		name     : string;
 		id       : s16;
-		parent   : *~s16 Joint;
-		children : []*~s16 Joint;
+		parent   : *Joint;
+		children : []*Joint;
 
 		local_bind_transform   : Mat4f;
 		inverse_bind_transform : Mat4f;
@@ -279,9 +279,9 @@ load_skeleton :: (using skeleton : *Skeleton, filename : string) -> bool
 	if !starts_with (file_contents, "joint_count ")
 		return log_error ("Expected joint_count.");
 	file_contents = advance (file_contents, "joint_count ".count);
-	val, read := string_to_u32 (file_contents);
-	if !read
-		return log_error ("Expected a u32.");
+	val, read := string_to_s16 (file_contents);
+	if !read || val < 0
+		return log_error ("Expected a positive s16.");
 	file_contents = advance (file_contents, read + 1);
 	joints = alloc_array (Joint, val, HEAP_ALLOC, initialize = true);
 	for * joint : joints
@@ -294,6 +294,7 @@ load_skeleton :: (using skeleton : *Skeleton, filename : string) -> bool
 			file_contents = advance (file_contents);
 		joint.name.count = file_contents.data - joint.name.data;
 		joint.name = clone_string (joint.name, HEAP_ALLOC);
+		joint.id = xx it_index;
 		file_contents = advance (file_contents);
 		if !starts_with (file_contents, "local_bind_transform\n")
 			return log_error ("Expected local_bind_transform\\n.");
@@ -314,23 +315,61 @@ load_skeleton :: (using skeleton : *Skeleton, filename : string) -> bool
 		file_contents = advance (file_contents, "child_count ".count);
 		val : s16;
 		val, read = string_to_s16 (file_contents);
-		if !read
-			return log_error ("Expected a s16.");
+		if !read || val < 0
+			return log_error ("Expected a positive s16.");
 		file_contents = advance (file_contents, read + 1);
-		joint.children = alloc_array (*~s16 Joint, val, HEAP_ALLOC);
-		for * child : joint.children
+		joint.children = alloc_array (*Joint, val, HEAP_ALLOC);
+		for i : 0..joint.children.count - 1
 		{
 			id, read := string_to_s16 (file_contents);
-			if !read
-				return log_error ("Expected a s16.");
+			if !read || val < 0
+				return log_error ("Expected a positive s16.");
 			file_contents = advance (file_contents, read + 1);
-			<<child = xx id;
-			(<<child).parent = joint;
+			joint.children[i] = *joints[id];
+			joint.children[i].parent = joint;
 		}
 		file_contents = advance (file_contents);
 	}
+	if joints.count > 0
+		root_joint = *joints[0];
+
+	calculate_skeleton_transforms :: inline (using skeleton : *Skeleton)
+	{
+		calculate_joint_transforms :: (using joint : *Joint, parent_transform : Mat4f)
+		{
+			bind_transform := local_bind_transform * parent_transform;
+			inverse_bind_transform = inverse (bind_transform);
+			for children
+				calculate_joint_transforms (it, bind_transform);
+		}
+
+		calculate_joint_transforms (root_joint, MAT4F_IDENTITY);
+	}
+	calculate_skeleton_transforms (skeleton);
 
 	return true;
+}
+
+debug_draw_skeleton :: inline (using skeleton : Skeleton, color : RGBA, transform := MAT4F_IDENTITY)
+{
+	debug_draw_joint :: (joint : *Joint, size : f32, transform : Mat4f, color : RGBA) -> joint_position : Vec3f
+	{
+		model_space_transform := inverse (joint.inverse_bind_transform);
+		world_space_transform := model_space_transform * transform;
+		start := translation_vector (world_space_transform);
+		for child : joint.children
+		{
+			end := debug_draw_joint (child, size, transform, color);
+			debug_draw_line (start, end, color);
+		}
+		debug_draw_cross (start, size, color);
+
+		return start;
+	}
+
+	scale := scale_vector (transform);
+	size := length (scale) * 0.005;
+	debug_draw_joint (root_joint, size, transform, color);
 }
 
 draw_mesh :: (using mesh : *Mesh)
@@ -382,7 +421,7 @@ main :: ()
 	defer destroy_gl_context (window, gl_context);
 	if !init_fonts ()
 		return;
-	ok := load_font_from_file (*font, "JetBrainsMono-Regular.ttf");
+	ok := load_font_from_file (*font, "data/JetBrainsMono-Regular.ttf");
 	if !ok
 	{
 		show_error_box (window, "Could not load font 'JetBrainsMono-Regular.ttf'.");
@@ -413,20 +452,19 @@ main :: ()
 	mannequin_skeleton : Skeleton;
 	if !load_skeleton (*mannequin_skeleton, "data/blender/mannequin.skel")
 	{
-		show_error_box (window, "Could not load skeleton.");
+		show_error_box ("Could not load skeleton.");
 		return;
 	}
 	shader : Shader;
+	log : string;
+	ok, log = init_shader (*shader, VERTEX_SHADER, FRAGMENT_SHADER);
+	if !ok
 	{
-		ok, log := init_shader (*shader, VERTEX_SHADER, FRAGMENT_SHADER);
-		if !ok
-		{
-			log_error ("Could not load shader: %", log);
-			show_error_box (window, "Could not load shader.");
-			return;
-		}
-		defer destroy_shader (*shader);
+		log_error ("Could not load shader: %", log);
+		show_error_box (window, "Could not load shader.");
+		return;
 	}
+	defer destroy_shader (*shader);
 
 	camera.position.z = -2;
 	camera.position.y = 1;
@@ -461,6 +499,7 @@ main :: ()
 		glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		debug_draw_begin (debug_draw);
+			debug_draw_set_depth_test (true);
 			//draw_aabb_colliders (RGBA_GREEN);
 			//draw_player (*player);
 			debug_draw_coordinates (MAT4F_IDENTITY);
@@ -476,6 +515,11 @@ main :: ()
 		set_shader_parameter (*shader, "u_Model_Matrix", player.transform);
 		draw_mesh (*mannequin_mesh);
 		
+		debug_draw_begin (debug_draw);
+			debug_draw_set_depth_test (false);
+			debug_draw_skeleton (mannequin_skeleton, rgba (255, 50, 100));
+		debug_draw_end ();
+
 		imdraw_begin (imdraw);
 			imdraw_text (
 				*font,
