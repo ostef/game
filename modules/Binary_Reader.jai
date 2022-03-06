@@ -1,9 +1,23 @@
+#import "Core";
+
 Binary_Reader :: struct
 {
 	start, cursor, end : *u8;
 }
 
-read :: inline ($T : Type, using reader : *Binary_Reader) -> value : T, ok : bool
+init_binary_reader :: inline (using reader : *Binary_Reader, bytes : string)
+{
+	start = bytes.data;
+	cursor = bytes.data;
+	end = bytes.data + bytes.count;
+}
+
+to_string :: inline (using reader : Binary_Reader) -> string #must
+{
+	return make_string (cursor, end - cursor);
+}
+
+read :: inline (using reader : *Binary_Reader, $T : Type) -> value : T, ok : bool
 {
 	result : T;
 	if cursor + size_of (T) > end
@@ -14,9 +28,9 @@ read :: inline ($T : Type, using reader : *Binary_Reader) -> value : T, ok : boo
 	return result, true;
 }
 
-read_positive :: inline ($T : Type, using reader : *Binary_Reader) -> value : T, ok : bool
+read_positive :: inline (using reader : *Binary_Reader, $T : Type) -> value : T, ok : bool
 {
-	value, ok := read (T, reader);
+	value, ok := read (reader, T);
 	if !ok || value < 0
 		return 0, false;
 	return value, true;
@@ -25,39 +39,47 @@ read_positive :: inline ($T : Type, using reader : *Binary_Reader) -> value : T,
 match_string :: (reader : *Binary_Reader, str : string, location := #caller_location) #expand
 {
 	if reader.cursor + str.count > reader.end
-		`return log_error ("Expected '%', but there was not enough bytes (got %).", reader.end - reader.cursor, location = location);
+		`return log_error ("Expected '{:$}', but there was not enough bytes (got %).", reader.end - reader.cursor, location = location);
 	if memcmp (reader.cursor, str.data, str.count) != 0
-		`return log_error ("Expected '%'.", str, location = location);
+		`return log_error ("Expected '{:$}'.", str, location = location);
 	reader.cursor += str.count;
 }
 
-expect :: (T : Type, reader : *Binary_Reader, location := #caller_location) -> T #expand
+expect :: (reader : *Binary_Reader, $T : Type, location := #caller_location) -> T #expand
 {
-	val, ok := read (T, reader);
+	val, ok := read (reader, T);
 	if !ok
 		`return log_error ("Expected %, but there was not enough bytes (got %, expected at least % bytes).", T, reader.end - reader.cursor, size_of (T), location = location);
-
 	return val;
 }
 
-expect_positive :: (T : Type, reader : *Binary_Reader, location := #caller_location) -> T #expand
+expect_positive :: (reader : *Binary_Reader, $T : Type, location := #caller_location) -> T #expand
 {
-	val, ok := read (T, reader);
+	val, ok := read (reader, T);
 	if !ok
 		`return log_error ("Expected %, but there was not enough bytes (got %, expected at least % bytes).", T, reader.end - reader.cursor, size_of (T), location = location);
 	if val < 0
 		`return log_error ("Expected a positive %, but got a negative value (%).", T, val, location = location);
+	return val;
+}
 
+expect_range :: (reader : *Binary_Reader, $T : Type, min : T, max : T, location := #caller_location) -> T #expand
+{
+	val, ok := read (reader, T);
+	if !ok
+		`return log_error ("Expected %, but there was not enough bytes (got %, expected at least % bytes).", T, reader.end - reader.cursor, size_of (T), location = location);
+	if val < min || val > max
+		`return log_error ("Expected a % in the range [%;%], but got %.", T, min, max, val, location = location);
 	return val;
 }
 
 expect_string :: (reader : *Binary_Reader, count_type := s64, location := #caller_location) -> string #expand
 {
 	result : string;
-	result.count = expect_positive (count_type, reader, location);
+	result.count = expect_positive (reader, count_type, location);
 	if reader.cursor + result.count > reader.end
 		`return log_error (
-			"Expected a sequence of % characters, but there was not enough bytes (got %, expected at least % bytes).",
+			"Expected a sequence of % bytes, but there was not enough bytes (got %, expected at least % bytes).",
 			result.count, reader.end - reader.cursor, result.count, location = location
 		);
 	result.data = reader.cursor;
@@ -66,10 +88,10 @@ expect_string :: (reader : *Binary_Reader, count_type := s64, location := #calle
 	return result;
 }
 
-expect_array :: (T : Type, reader : *Binary_Reader, count_type := s64, location := #caller_location) -> []T #expand
+expect_array :: (reader : *Binary_Reader, $T : Type, count_type := s64, location := #caller_location) -> []T #expand
 {
 	result : []T;
-	result.count = expect_positive (count_type, reader, location);
+	result.count = expect_positive (reader, count_type, location);
 	if reader.cursor + size_of (T) * result.count > reader.end
 		`return log_error (
 			"Expected a sequence of % %s, but there was not enough bytes (got %, expected at least % bytes).",
