@@ -18,19 +18,21 @@ debug_draw_coordinates :: inline (
 	position : Vec3f,
 	right : Vec3f,
 	up : Vec3f,
-	forward : Vec3f
+	forward : Vec3f,
+	scale := 1.0
 )
 {
-	debug_draw_line (position, position +   right, RGBA_RED);
-	debug_draw_line (position, position +      up, RGBA_GREEN);
-	debug_draw_line (position, position + forward, RGBA_BLUE);
+	debug_draw_line (position, position +   right * scale, RGBA_RED);
+	debug_draw_line (position, position +      up * scale, RGBA_GREEN);
+	debug_draw_line (position, position + forward * scale, RGBA_BLUE);
 }
 
 debug_draw_coordinates :: inline (
-	matrix : Mat4f
+	matrix : Mat4f,
+	scale := 1.0
 )
 {
-	debug_draw_coordinates (translation_vector (matrix), right_vector (matrix), up_vector (matrix), forward_vector (matrix));
+	debug_draw_coordinates (translation_vector (matrix), right_vector (matrix), up_vector (matrix), forward_vector (matrix), scale);
 }
 
 debug_draw_cube :: inline (
