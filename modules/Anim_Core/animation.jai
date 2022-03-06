@@ -37,8 +37,8 @@ BINARY_ANIMATION_FILE_VERSION :: Format_Version.{ 1, 0, 0 };
 
 read_binary_animation_file :: (using animation : *Sampled_Animation, reader : *Binary_Reader) -> bool
 {
-	match_asset_header (reader, "AnimBin");
-	skeleton_name := expect_string (reader);
+	expect_asset_header (reader, "AnimBin");
+	skeleton_name := clone_string (expect_string (reader), HEAP_ALLOC);
 	skeleton = load_asset (Skeleton, skeleton_name);
 	if !skeleton
 		return false;

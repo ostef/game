@@ -19,15 +19,15 @@ BINARY_SKELETON_FILE_VERSION :: Format_Version.{ 1, 0, 0 };
 
 read_binary_skeleton_file :: (using skeleton : *Skeleton, reader : *Binary_Reader) -> bool
 {
-	match_asset_header (reader, "SkelBin");
+	expect_asset_header (reader, "SkelBin");
 	joints.count = expect_positive (s16, reader);
 	joints.data = alloc_array (Joint, joints.count, HEAP_ALLOC);
 	for * joints
 	{
-		it.name = expect_string (reader, count_type = s8);
+		it.name = clone_string (expect_string (reader, count_type = s8), HEAP_ALLOC);
 		it.id = cast (s16) it_index;
 		it.parent = null;
-		it.children = expect_array (s16, reader, count_type = s16);
+		it.children = clone_array (expect_array (s16, reader, count_type = s16), HEAP_ALLOC);
 	}
 	root_joint = ifx joints.count > 0 then *joints[0] else null;
 	// Update parent pointers
@@ -36,8 +36,9 @@ read_binary_skeleton_file :: (using skeleton : *Skeleton, reader : *Binary_Reade
 		for child : it.children
 			child.parent = it;
 	}
-
 	calculate_skeleton_transforms (skeleton);
+
+	return true;
 }
 
 calculate_skeleton_transforms :: inline (using skeleton : *Skeleton)
