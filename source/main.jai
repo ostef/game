@@ -12,6 +12,8 @@
 #import "ImDraw";
 #import "Debug_Draw";
 #import "File_System";
+#import "Binary_Reader";
+#import "Asset";
 
 #load "player.jai";
 #load "camera.jai";
@@ -68,6 +70,30 @@ Static_Vertex :: struct
 }
 
 Static_Mesh :: Mesh (Static_Vertex);
+
+load_mesh_binary :: (using mesh : *Static_Mesh, filename : string) -> bool
+{
+	file_contents, ok := read_entire_file (filename, HEAP_ALLOC);
+	if !ok
+		return log_error ("Could not read file '%'.", filename);
+	defer free (file_contents, HEAP_ALLOC);
+	reader : Binary_Reader;
+	init_binary_reader (*reader, file_contents);
+
+	expect_asset_header (*reader, "MeshBin");
+	vertices.count = expect (*reader, u32);
+	vertices.data = alloc (size_of (Static_Vertex) * vertices.count, HEAP_ALLOC);
+	for * vert : vertices
+	{
+		vert.position = expect (*reader, Vec3f);
+		vert.tex_coords = expect (*reader, Vec2f);
+		vert.normal = expect (*reader, Vec3f);
+		joint_ids := expect (*reader, [4]s16);
+		weights := expect (*reader, Vec3f);
+	}
+	indices = clone_array (expect_array (*reader, u32, count_type = u32), HEAP_ALLOC);
+	return true;
+}
 
 load_mesh :: (using mesh : *Static_Mesh, filename : string) -> bool
 {
@@ -362,13 +388,13 @@ debug_draw_skeleton :: inline (using skeleton : Skeleton, color : RGBA, transfor
 			end := debug_draw_joint (child, size, transform, color);
 			debug_draw_line (start, end, color);
 		}
-		debug_draw_cross (start, size, color);
+		debug_draw_coordinates (world_space_transform, size);
 
 		return start;
 	}
 
 	scale := scale_vector (transform);
-	size := length (scale) * 0.005;
+	size := length (scale) * 0.01;
 	debug_draw_joint (root_joint, size, transform, color);
 }
 
@@ -442,7 +468,7 @@ main :: ()
 	}
 	defer debug_draw_destroy_context (debug_draw);
 	mannequin_mesh : Static_Mesh;
-	if !load_mesh (*mannequin_mesh, "data/blender/mannequin.mesh")
+	if !load_mesh_binary (*mannequin_mesh, "data/blender/mannequin.mesh")
 	{
 		show_error_box (window, "Could not load mesh.");
 		return;
