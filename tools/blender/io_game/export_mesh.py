@@ -123,7 +123,7 @@ def write_mesh_binary (obj : Object, mesh : Mesh, filename : str, version : Tupl
 			fw (pack ("<3f", *normal))
 			fw (pack ("<4h", *bone_ids))
 			fw (pack ("<3f", *weights))
-		fw (pack ("<I", len (tris)))
+		fw (pack ("<I", len (tris) * 3))
 		for tri in tris:
 			fw (pack ("<3I", *tri))
 
