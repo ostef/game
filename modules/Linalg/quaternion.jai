@@ -176,7 +176,9 @@ to_matrix :: inline (quat : Quatf) -> Mat4f #must
 // But we also often want to extract the rotation of a transform matrix,
 // which is a Mat4f. Since Mat4f has all the members of Mat3f, we can pass
 // a Mat4f here, and there is not duplicated code!
-to_quaternion :: inline (mat : $T/interface Mat3f) -> Quatf #must
+// Actually, we can't use /interface, because the rows members are Vec3fs
+// in Mat3f, and they are Vec4fs in Mat4f.
+to_quaternion :: inline (mat : $T/*/interface Mat3f*/) -> Quatf #must
 {
 	result : Quatf = ---;
 	t : f32 = ---;
