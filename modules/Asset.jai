@@ -1,4 +1,6 @@
 #import "Core";
+#import "Storage";
+#import "Hash_Map";
 #import "Binary_Reader";
 
 Asset :: struct (T : Type)
@@ -6,6 +8,70 @@ Asset :: struct (T : Type)
 	name : string;
 	ref_count : s64;
 	using data : T;
+}
+
+Asset_Cache :: struct (T : Type)
+{
+	Asset_Type :: Asset (T);
+	Load_Func    :: #type (*T, string) -> bool;
+	Cleanup_Func :: #type (*T);
+
+	storage      : Storage (Asset_Type, 20);
+	lookup_table : Hash_Map (string, *Asset_Type);
+	load_func    : Load_Func;
+	cleanup_func : Cleanup_Func;
+}
+
+init_asset_cache :: inline (cache : *Asset_Cache, load_func : cache.Load_Func, cleanup_func : cache.Cleanup_Func)
+{
+	init_storage (*cache.storage, HEAP_ALLOC);
+	init_map (*cache.lookup_table, 100, HEAP_ALLOC);
+	cache.load_func    = load_func;
+	cache.cleanup_func = cleanup_func;
+}
+
+add_ref :: inline (using asset : *$T/Asset) -> *T
+{
+	ref_count += 1;
+
+	return asset;
+}
+
+load_asset :: (using cache : *Asset_Cache, name : string) -> *cache.Asset_Type #must
+{
+	asset := get_value (lookup_table, name, null);
+	if asset
+		return add_ref (asset);
+	asset = find_free_slot (*storage);
+	asset.name = name;
+	ok := load_func (asset, name);
+	if !ok
+	{
+		log_error ("Could not load asset '%'.", name);
+		cleanup_func (asset);
+		release_slot (*storage, asset);
+
+		return null;
+	}
+	asset.name = clone_string (name, HEAP_ALLOC);
+	insert_into_map (*lookup_table, asset.name, asset);
+
+	return add_ref (asset);
+}
+
+release_asset :: (using cache : *Asset_Cache, asset : *cache.Asset_Type)
+{
+	assert (asset.ref_count > 0, "Releasing asset '%' but it has no reference.", asset.name);
+	asset.ref_count -= 1;
+	if asset.ref_count == 0
+	{
+		log_message ("Unloading asset '%'.", asset.name);
+		if cleanup_func
+			cleanup_func (asset);
+		release_slot (*storage, asset);
+		remove_from_map (*lookup_table, asset.name);
+		free (asset.name, HEAP_ALLOC);
+	}
 }
 
 Format_Version :: struct
