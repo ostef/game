@@ -3,17 +3,18 @@
 #import "Linalg";
 #import "Fmt";
 #import "Win32";
+#import "File_System";
 #import "GL";
 #import "Window";
 #import "Input";
 #import "Config";
-#import "Render_Core";
+#import "Asset";
 #import "Font";
+#import "Render_Core";
 #import "ImDraw";
 #import "Debug_Draw";
-#import "File_System";
+#import "Anim_Core";
 #import "Binary_Reader";
-#import "Asset";
 
 #load "player.jai";
 #load "camera.jai";
@@ -54,348 +55,6 @@ process_window_message :: inline (msg : Window_Message)
 	case .WINDOW_RESIZED;
 		println ("Window resized: % %", msg.viewport_width, msg.viewport_height);
 	}
-}
-
-Static_Vertex :: struct
-{
-	position : Vec3f;
-	tex_coords : Vec2f;
-	normal : Vec3f;
-
-	LAYOUT :: Vertex_Buffer.Elem.[
-		Vertex_Buffer.VEC3F,
-		Vertex_Buffer.VEC2F,
-		Vertex_Buffer.VEC3F
-	];
-}
-
-Static_Mesh :: Mesh (Static_Vertex);
-
-load_mesh_binary :: (using mesh : *Static_Mesh, filename : string) -> bool
-{
-	file_contents, ok := read_entire_file (filename, HEAP_ALLOC);
-	if !ok
-		return log_error ("Could not read file '%'.", filename);
-	defer free (file_contents, HEAP_ALLOC);
-	reader : Binary_Reader;
-	init_binary_reader (*reader, file_contents);
-
-	expect_asset_header (*reader, "MeshBin");
-	vertices.count = expect (*reader, u32);
-	vertices.data = alloc (size_of (Static_Vertex) * vertices.count, HEAP_ALLOC);
-	for * vert : vertices
-	{
-		vert.position = expect (*reader, Vec3f);
-		vert.tex_coords = expect (*reader, Vec2f);
-		vert.normal = expect (*reader, Vec3f);
-		joint_ids := expect (*reader, [4]s16);
-		weights := expect (*reader, Vec3f);
-	}
-	indices = clone_array (expect_array (*reader, u32, count_type = u32), HEAP_ALLOC);
-	return true;
-}
-
-load_mesh :: (using mesh : *Static_Mesh, filename : string) -> bool
-{
-	file_contents, ok := read_entire_file (filename, HEAP_ALLOC);
-	if !ok
-		return log_error ("Could not read file '%'.", filename);
-	file_data := file_contents.data;
-	defer free (file_data, HEAP_ALLOC);
-
-	if !starts_with (file_contents, "MeshTxt\n")
-		return log_error ("Expected MeshTxt.");
-	file_contents = advance (file_contents, "MeshTxt\n".count);
-	if !starts_with (file_contents, "1.0.0\n")
-		return log_error ("Expected file format version.");
-	file_contents = advance (file_contents, "1.0.0\n".count);
-	{
-		val, read := string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [yyyy].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [mm].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [dd].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [HH].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [MM].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [SS].");
-		file_contents = advance (file_contents, read + 1);
-	}
-	if !starts_with (file_contents, "vertex_count ")
-		return log_error ("Expected vertex_count.");
-	file_contents = advance (file_contents, "vertex_count ".count);
-	val, read := string_to_u32 (file_contents);
-	if !read
-		return log_error ("Expected a u32.");
-	file_contents = advance (file_contents, read + 1);
-	vertices = alloc_array (Static_Vertex, val, HEAP_ALLOC);
-	if !starts_with (file_contents, "triangle_count ")
-		return log_error ("Expected triangle_count.");
-	file_contents = advance (file_contents, "triangle_count ".count);
-	val, read = string_to_u32 (file_contents);
-	if !read
-		return log_error ("Expected a u32.");
-	file_contents = advance (file_contents, read + 1);
-	indices = alloc_array (u32, val * 3, HEAP_ALLOC);
-	for * vert : vertices
-	{
-		if !starts_with (file_contents, "v\n")
-			return log_error ("Expected v\\n.");
-		file_contents = advance (file_contents, "v\n".count);
-		vert.position.x, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.position.y, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.position.z, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.tex_coords.x, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.tex_coords.y, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.normal.x, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.normal.y, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		vert.normal.z, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		joint : s16;
-		joint, read = string_to_s16 (file_contents);
-		if !read
-			return log_error ("Expected a s16.");
-		file_contents = advance (file_contents, read + 1);
-		joint, read = string_to_s16 (file_contents);
-		if !read
-			return log_error ("Expected a s16.");
-		file_contents = advance (file_contents, read + 1);
-		joint, read = string_to_s16 (file_contents);
-		if !read
-			return log_error ("Expected a s16.");
-		file_contents = advance (file_contents, read + 1);
-		joint, read = string_to_s16 (file_contents);
-		if !read
-			return log_error ("Expected a s16.");
-		file_contents = advance (file_contents, read + 1);
-
-		weight : f32;
-		weight, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		weight, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-		weight, read = string_to_f32 (file_contents);
-		if !read
-			return log_error ("Expected a f32.");
-		file_contents = advance (file_contents, read + 1);
-	}
-	triangles : [][3]u32;
-	triangles.data = cast (*[3]u32) indices.data;
-	triangles.count = indices.count / 3;
-	for * tri : triangles
-	{
-		if !starts_with (file_contents, "t ")
-			return log_error ("Expected t .");
-		file_contents = advance (file_contents, "t ".count);
-		(<<tri)[0], read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected a u32.");
-		file_contents = advance (file_contents, read + 1);
-		(<<tri)[1], read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected a u32.");
-		file_contents = advance (file_contents, read + 1);
-		(<<tri)[2], read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected a u32.");
-		file_contents = advance (file_contents, read + 1);
-	}
-
-	return true;
-}
-
-Skeleton :: struct
-{
-	Joint :: struct
-	{
-		name     : string;
-		id       : s16;
-		parent   : *Joint;
-		children : []*Joint;
-
-		local_bind_transform   : Mat4f;
-		inverse_bind_transform : Mat4f;
-	}
-
-	joints : []Joint;
-	root_joint : *Joint;
-}
-
-load_skeleton :: (using skeleton : *Skeleton, filename : string) -> bool
-{
-	file_contents, ok := read_entire_file (filename, HEAP_ALLOC);
-	if !ok
-		return log_error ("Could not read file '%'.", filename);
-	file_data := file_contents.data;
-	defer free (file_data, HEAP_ALLOC);
-
-	if !starts_with (file_contents, "SkelTxt\n")
-		return log_error ("Expected SkelTxt.");
-	file_contents = advance (file_contents, "SkelTxt\n".count);
-	if !starts_with (file_contents, "1.0.0\n")
-		return log_error ("Expected file format version.");
-	file_contents = advance (file_contents, "1.0.0\n".count);
-	{
-		val, read := string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [yyyy].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [mm].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [dd].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [HH].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [MM].");
-		file_contents = advance (file_contents, read + 1);
-		val, read = string_to_u32 (file_contents);
-		if !read
-			return log_error ("Expected [SS].");
-		file_contents = advance (file_contents, read + 1);
-	}
-	if !starts_with (file_contents, "joint_count ")
-		return log_error ("Expected joint_count.");
-	file_contents = advance (file_contents, "joint_count ".count);
-	val, read := string_to_s16 (file_contents);
-	if !read || val < 0
-		return log_error ("Expected a positive s16.");
-	file_contents = advance (file_contents, read + 1);
-	joints = alloc_array (Joint, val, HEAP_ALLOC, initialize = true);
-	for * joint : joints
-	{
-		if !starts_with (file_contents, "joint ")
-			return log_error ("Expected joint .");
-		file_contents = advance (file_contents, "joint ".count);
-		joint.name.data = file_contents.data;
-		while file_contents.count > 0 && file_contents[0] != #char "\n"
-			file_contents = advance (file_contents);
-		joint.name.count = file_contents.data - joint.name.data;
-		joint.name = clone_string (joint.name, HEAP_ALLOC);
-		joint.id = xx it_index;
-		file_contents = advance (file_contents);
-		if !starts_with (file_contents, "local_bind_transform\n")
-			return log_error ("Expected local_bind_transform\\n.");
-		file_contents = advance (file_contents, "local_bind_transform\n".count);
-		for i : 0..3
-		{
-			for j : 0..3
-			{
-				val, read := string_to_f64 (file_contents);
-				if !read
-					return log_error ("Expected a f32.");
-				file_contents = advance (file_contents, read + 1);
-				joint.local_bind_transform.n[i][j] = xx val;
-			}
-		}
-		if !starts_with (file_contents, "child_count ")
-			return log_error ("Expected child_count .");
-		file_contents = advance (file_contents, "child_count ".count);
-		val : s16;
-		val, read = string_to_s16 (file_contents);
-		if !read || val < 0
-			return log_error ("Expected a positive s16.");
-		file_contents = advance (file_contents, read + 1);
-		joint.children = alloc_array (*Joint, val, HEAP_ALLOC);
-		for i : 0..joint.children.count - 1
-		{
-			id, read := string_to_s16 (file_contents);
-			if !read || val < 0
-				return log_error ("Expected a positive s16.");
-			file_contents = advance (file_contents, read + 1);
-			joint.children[i] = *joints[id];
-			joint.children[i].parent = joint;
-		}
-		file_contents = advance (file_contents);
-	}
-	if joints.count > 0
-		root_joint = *joints[0];
-
-	calculate_skeleton_transforms :: inline (using skeleton : *Skeleton)
-	{
-		calculate_joint_transforms :: (using joint : *Joint, parent_transform : Mat4f)
-		{
-			bind_transform := local_bind_transform * parent_transform;
-			inverse_bind_transform = inverse (bind_transform);
-			for children
-				calculate_joint_transforms (it, bind_transform);
-		}
-
-		calculate_joint_transforms (root_joint, MAT4F_IDENTITY);
-	}
-	calculate_skeleton_transforms (skeleton);
-
-	return true;
-}
-
-debug_draw_skeleton :: inline (using skeleton : Skeleton, color : RGBA, transform := MAT4F_IDENTITY)
-{
-	debug_draw_joint :: (joint : *Joint, size : f32, transform : Mat4f, color : RGBA) -> joint_position : Vec3f
-	{
-		model_space_transform := inverse (joint.inverse_bind_transform);
-		world_space_transform := model_space_transform * transform;
-		start := translation_vector (world_space_transform);
-		for child : joint.children
-		{
-			end := debug_draw_joint (child, size, transform, color);
-			debug_draw_line (start, end, color);
-		}
-		debug_draw_coordinates (world_space_transform, size);
-
-		return start;
-	}
-
-	scale := scale_vector (transform);
-	size := length (scale) * 0.01;
-	debug_draw_joint (root_joint, size, transform, color);
 }
 
 draw_mesh :: (using mesh : *Mesh)
@@ -467,20 +126,21 @@ main :: ()
 		return;
 	}
 	defer debug_draw_destroy_context (debug_draw);
-	mannequin_mesh : Static_Mesh;
-	if !load_mesh_binary (*mannequin_mesh, "data/blender/mannequin.mesh")
+	init_anim_core_asset_caches ();
+	mannequin_mesh := load_asset (*skinned_mesh_assets, "data/blender/mannequin.mesh");
+	if !mannequin_mesh
 	{
-		show_error_box (window, "Could not load mesh.");
+		show_error_box ("Could not load mesh.");
 		return;
 	}
-	init_mesh_buffers (*mannequin_mesh);
-	defer destroy_mesh_buffers (*mannequin_mesh);
-	mannequin_skeleton : Skeleton;
-	if !load_skeleton (*mannequin_skeleton, "data/blender/mannequin.skel")
+	defer release_asset (*skinned_mesh_assets, mannequin_mesh);
+	mannequin_skeleton := load_asset (*skeleton_assets, "data/blender/mannequin.skel");
+	if !mannequin_skeleton
 	{
 		show_error_box ("Could not load skeleton.");
 		return;
 	}
+	defer release_asset (*skeleton_assets, mannequin_skeleton);
 	shader : Shader;
 	log : string;
 	ok, log = init_shader (*shader, VERTEX_SHADER, FRAGMENT_SHADER);
@@ -539,7 +199,7 @@ main :: ()
 		use_shader (*shader);
 		set_shader_parameter (*shader, "u_View_Projection_Matrix", camera.view_projection_matrix);
 		set_shader_parameter (*shader, "u_Model_Matrix", player.transform);
-		draw_mesh (*mannequin_mesh);
+		draw_mesh (mannequin_mesh);
 		
 		debug_draw_begin (debug_draw);
 			debug_draw_set_depth_test (false);
@@ -554,12 +214,6 @@ main :: ()
 				fmt (TEMP_ALLOC, "% FPS", cast (int) (1 / delta_time)),
 				RGBA_WHITE
 			);
-			normalized_jump_multiplier := player.jump_multiplier / player.JUMP_MAX_MULTIPLIER;
-			if player.jump_multiplier > 1
-				imdraw_rect (
-					rectf (10, lerp (100.0, 40.0, normalized_jump_multiplier), 20, 100),
-					blend (RGBA_GREEN, RGBA_RED, normalized_jump_multiplier)
-				);
 		imdraw_end ();
 		
 		swap_window_buffers (window);
