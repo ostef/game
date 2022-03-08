@@ -12,8 +12,10 @@ Storage :: struct (T : Type, items_per_page : s32)
 
 	Page :: struct
 	{
-		prev  : *~s32 Page;
-		next  : *~s32 Page;
+		// @Note (stefan): I would like to use relative pointers
+		// to use less memory, but Pages are allocated on the heap.
+		prev  : *Page;
+		next  : *Page;
 		index : u32;
 		count : s32;
 		items : [items_per_page]T = ---;
@@ -31,10 +33,9 @@ Storage :: struct (T : Type, items_per_page : s32)
 
 Slot_Info :: struct
 {
-	version     : u32;
-	is_new_page : bool;
-	page_index  : s64;
-	slot_index  : s64;
+	version    : u32;
+	page_index : s64;
+	slot_index : s64;
 }
 
 init_storage :: inline (storage : *Storage, allocator : Allocator)
@@ -63,13 +64,15 @@ reset_storage :: inline (using storage : *Storage)
 	count = 0;
 }
 
-find_free_slot :: (using storage : *Storage, $initialize := true) -> *storage.T #must, info : Slot_Info
+find_free_slot :: (using storage : *Storage, $initialize := true) -> *storage.T #must, info : Slot_Info, is_new_page : bool
 {
 	info : Slot_Info;
+	is_new_page := false;
 	page := free_pages;
 	if !page
 	{
-		info.is_new_page = true;
+		log_message ("Allocating new page for %.", type_of (<<storage));
+		is_new_page = true;
 		page = new (Page, allocator);
 		for i : 0..items_per_page - 2
 			page.slots[i].next = *page.slots[i + 1];
@@ -107,7 +110,7 @@ find_free_slot :: (using storage : *Storage, $initialize := true) -> *storage.T 
 	info.page_index = page.index;
 	info.slot_index = cast (s64) (slot - page.slots.data) / size_of (Slot);
 
-	return item, info;
+	return item, info, is_new_page;
 }
 
 release_slot :: (using storage : *Storage, info : Slot_Info)
@@ -217,4 +220,29 @@ get_slot_info :: (using storage : *Storage, item : *storage.T) -> valid : bool, 
 	}
 
 	return false, info, false;
+}
+
+for_expansion :: (storage : *Storage, body : Code, flags : For_Flags) #expand
+{
+	BY_POINTER :: (flags & .POINTER) == .POINTER;
+	REVERSE    :: (flags & .REVERSE) == .REVERSE;
+
+	#assert !REVERSE "Storage is an unordered data structure. Iterating in reverse does not make much sense.";
+	`it_index : Slot_Info;
+	for page, pi : storage.pages
+	{
+		slot := page.occupied_slots;
+		while slot
+		{
+			defer slot = slot.next;
+			it_index.version    = slot.version;
+			it_index.page_index = pi;
+			it_index.slot_index = cast (s64) (slot - *page.slots[0]) / size_of (storage.Slot);
+#if BY_POINTER
+			`it := *page.items[it_index.slot_index];
+else
+			`it := page.items[it_index.slot_index];
+			#insert (break = break page) body;
+		}
+	}
 }
