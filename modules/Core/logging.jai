@@ -4,6 +4,59 @@
 // to use external modules as-is. Can we check if an identifier is declared ?
 // Can we insert that identifier for every module at module scope using a metaprogram ?
 
+#scope_file
+
+stdout_handle : HANDLE;
+logger_critical_section : CRITICAL_SECTION;
+logger_initialized : s32;
+
+initialize_logger :: ()
+{
+	#import "Atomics";
+
+	while true
+	{
+		if logger_initialized == 2
+			break;
+		ok, old := compare_and_swap (*logger_initialized, 0, 1);
+		if old ==
+		{
+		case 0;
+			InitializeCriticalSection (*logger_critical_section);
+			stdout_handle = GetStdHandle (STD_OUTPUT_HANDLE);
+			compare_and_swap (*logger_initialized, 1, 2);
+
+		case 1;
+			for 1..4
+			#asm
+			{
+				pause;
+				pause;
+				pause;
+				pause;
+				pause;
+			}
+		}
+	}
+}
+
+#scope_export
+
+console_logger :: (message : string, data : *void, info : Log_Info)
+{
+	if message.count == 0
+		return;
+	initialize_logger ();
+	if flagged (info.common_flags, .ERROR)
+		SetConsoleTextAttribute (stdout_handle, FOREGROUND_RED);
+	else if flagged (info.common_flags, .WARNING)
+		SetConsoleTextAttribute (stdout_handle, FOREGROUND_RED | FOREGROUND_GREEN);
+	WriteFile (stdout_handle, message.data, xx message.count, null, null);
+	if message[message.count - 1] != #char "\n"
+		WriteFile (stdout_handle, "\n".data, 1, null, null);
+	SetConsoleTextAttribute (stdout_handle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+}
+
 log_message :: inline (
 	fmt_str : string,
 	args : ..Any,
@@ -21,7 +74,7 @@ log_message :: inline (
 	info : Log_Info;
 	//info.source_identifier = `MODULE_NAME_HASH;
 	info.location = location;
-	info.common_flags = remove_flag (flags, Log_Flags.ERROR | .WARNING);
+	info.common_flags = flags;
 	info.user_flags = user_flags;
 	context.logger (str, context.logger_data, info);
 }

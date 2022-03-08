@@ -34,6 +34,7 @@ fill_default_context :: inline (ctx : *Context)
 #if OS == .WINDOWS
 	ctx.thread_index = GetCurrentThreadId ();
 	ctx.allocator = HEAP_ALLOC;
+	ctx.logger = console_logger;
 }
 
 fill_default_context :: inline ()
