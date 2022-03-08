@@ -14,7 +14,6 @@
 #import "ImDraw";
 #import "Debug_Draw";
 #import "Anim_Core";
-#import "Binary_Reader";
 
 #load "player.jai";
 #load "camera.jai";
@@ -24,7 +23,7 @@ window  : *Window;
 font    : Font;
 running : bool;
 camera  : Camera;
-player : Player;
+player  : Player;
 raw_mouse_delta : Vec2f;
 
 process_window_message :: inline (msg : Window_Message)
@@ -51,13 +50,10 @@ process_window_message :: inline (msg : Window_Message)
 	case .WINDOW_LOST_FOCUS;
 		if msg.window == window
 			show_cursor ();
-
-	case .WINDOW_RESIZED;
-		println ("Window resized: % %", msg.viewport_width, msg.viewport_height);
 	}
 }
 
-draw_mesh :: (using mesh : *Mesh)
+draw_mesh :: inline (using mesh : *Mesh)
 {
 	prev_vertex_buffer := use_vertex_buffer (*vertex_buffer);
 	defer use_vertex_buffer (*prev_vertex_buffer);
