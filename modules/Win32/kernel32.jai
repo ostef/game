@@ -445,7 +445,6 @@ else             CreateFileTransacted :: CreateFileTransactedA;
 //DelayLoadFailureHook	5.0 and higher	 
 //DeleteAtom	3.51 and higher	documented
 //DeleteBoundaryDescriptor	6.0 and higher	documented
-//DeleteCriticalSection	3.51 and higher	documented
 //DeleteFiber	3.51 from Windows NT 3.51 SP5, and higher (NT);
 //4.10 to 4.90 (Windows)	documented
 
@@ -501,7 +500,6 @@ else             DeleteFileTransacted :: DeleteFileTransactedA;
 //begins in 5.2 from Windows Server 2003 SP1	documented
 //EndUpdateResourceA	3.51 and higher	documented
 //EndUpdateResourceW	3.51 and higher	documented
-//EnterCriticalSection	3.51 and higher	documented
 //EnterSynchronizationBarrier	6.3 and higher	documented
 //EnterUmsSchedulingMode	6.1 and higher (x64 only)	documented
 //EnumCalendarInfoA	3.51 and higher	documented
@@ -1053,7 +1051,13 @@ GetProcessHeaps	:: (NumberOfHeaps : DWORD, ProcessHeaps : *HANDLE) -> DWORD #for
 //GetStateRootFolder	6.2 only	 
 //GetStateSettingsFolder	6.2 only	 
 //GetStateVersion	6.2 only	 
-//GetStdHandle	3.51 and higher	documented
+
+GetStdHandle :: (nStdHandle : DWORD) -> HANDLE #foreign kernel32;
+
+STD_INPUT_HANDLE  :: cast, no_check (DWORD) -10;
+STD_OUTPUT_HANDLE :: cast, no_check (DWORD) -11;
+STD_ERROR_HANDLE  :: cast, no_check (DWORD) -12;
+
 //GetStringScripts	6.0 and higher	documented
 //GetStringTypeA	3.51 and higher	documented
 //GetStringTypeExA	3.51 and higher	documented
@@ -1231,9 +1235,6 @@ HEAP_REALLOC_IN_PLACE_ONLY : DWORD : 0x10;
 //InitOnceInitialize	6.0 and higher	documented
 //InitializeConditionVariable	6.0 and higher	documented
 //InitializeContext	6.1 from Windows 7 SP1, and higher	documented
-//InitializeCriticalSection	3.51 and higher	documented
-//InitializeCriticalSectionAndSpinCount	4.0 from Windows NT 4.0 SP3, and higher	documented
-//InitializeCriticalSectionEx	6.0 and higher	documented
 //InitializeExtendedContext	6.1 before Windows 7 SP1	documented
 //InitializeProcThreadAttributeList	6.0 and higher	documented
 //InitializeSListHead	5.1 and higher	documented
@@ -1334,8 +1335,44 @@ HEAP_REALLOC_IN_PLACE_ONLY : DWORD : 0x10;
 //LZRead	5.1 and higher	documented
 //LZSeek	5.1 and higher	documented
 //LZStart	5.1 and higher	documented
-//LeaveCriticalSection	3.51 and higher	documented
+
+LIST_ENTRY :: struct
+{
+	Flink : *LIST_ENTRY;
+	Blink : *LIST_ENTRY;
+}
+
+CRITICAL_SECTION_DEBUG :: struct
+{
+	Type : WORD;
+	CreatorBackTraceIndex : WORD;
+	CriticalSection : *CRITICAL_SECTION;
+	ProcessLocksList : LIST_ENTRY;
+	EntryCount : DWORD;
+	ContentionCount : DWORD;
+	Flags : DWORD;
+	CreatorBackTraceIndexHigh : WORD;
+	SpareWORD : WORD;
+}
+
+CRITICAL_SECTION :: struct
+{
+	DebugInfo : CRITICAL_SECTION_DEBUG;
+	LockCount : LONG;
+	RecursionCount : LONG;
+	OwningThread : HANDLE;
+	LockSemaphore : HANDLE;
+	SpinCount : *ULONG;
+}
+
+InitializeCriticalSection :: (lpCriticalSection : *CRITICAL_SECTION) #foreign kernel32;
+//InitializeCriticalSectionAndSpinCount	4.0 from Windows NT 4.0 SP3, and higher	documented
+//InitializeCriticalSectionEx	6.0 and higher	documented
+EnterCriticalSection :: (lpCriticalSection : *CRITICAL_SECTION) #foreign kernel32;
+LeaveCriticalSection :: (lpCriticalSection : *CRITICAL_SECTION) #foreign kernel32;
 //LeaveCriticalSectionWhenCallbackReturns	6.0 and higher	documented
+DeleteCriticalSection :: (lpCriticalSection : *CRITICAL_SECTION) #foreign kernel32;
+
 //LoadAppInitDlls	6.1 and higher	 
 //LoadLibrary16 (35)	4.0 to 4.90 (Windows only)	 
 //LoadLibraryA	3.51 and higher	documented
@@ -1914,9 +1951,29 @@ else             RemoveDirectoryTransacted :: RemoveDirectoryTransactedA;
 //SetConsolePalette	3.51 and higher (NT only)	 
 //SetConsoleScreenBufferInfoEx	6.0 and higher	documented
 //SetConsoleScreenBufferSize	3.51 and higher	documented
-//SetConsoleTextAttribute	3.51 and higher	documented
-//SetConsoleTitleA	3.51 and higher	documented
-//SetConsoleTitleW	3.51 and higher	documented
+
+FOREGROUND_BLUE            :: 0x0001;
+FOREGROUND_GREEN           :: 0x0002;
+FOREGROUND_RED             :: 0x0004;
+FOREGROUND_INTENSITY       :: 0x0008;
+BACKGROUND_BLUE            :: 0x0010;
+BACKGROUND_GREEN           :: 0x0020;
+BACKGROUND_RED             :: 0x0040;
+BACKGROUND_INTENSITY       :: 0x0080;
+COMMON_LVB_LEADING_BYTE    :: 0x0100;
+COMMON_LVB_TRAILING_BYTE   :: 0x0200;
+COMMON_LVB_GRID_HORIZONTAL :: 0x0400;
+COMMON_LVB_GRID_LVERTICAL  :: 0x0800;
+COMMON_LVB_GRID_RVERTICAL  :: 0x1000;
+COMMON_LVB_REVERSE_VIDEO   :: 0x2000;
+COMMON_LVB_UNDERSCORE      :: 0x4000;
+
+SetConsoleTextAttribute :: (hConsoleOutput : HANDLE, wAttributes : WORD) -> BOOL #foreign kernel32;
+SetConsoleTitleA :: (lpConsoleTitle : *CHAR) -> BOOL #foreign kernel32;
+SetConsoleTitleW :: (lpConsoleTitle : *WCHAR) -> BOOL #foreign kernel32;
+#if UNICODE then SetConsoleTitle :: SetConsoleTitleW;
+else             SetConsoleTitle :: SetConsoleTitleA;
+
 //SetConsoleWindowInfo	3.51 and higher	documented
 //SetCriticalSectionSpinCount	4.0 from Windows NT 4.0 SP3, and higher	documented
 //SetCurrentConsoleFontEx	6.0 and higher	documented
